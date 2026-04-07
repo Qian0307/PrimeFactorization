@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>質因數分解練習遊戲</title>
+<style>
+/* ===== CSS VARIABLES & RESET ===== */
+:root {
+  --bg1: #0f0c29;
+  --bg2: #302b63;
+  --bg3: #24243e;
+  --card: rgba(255,255,255,0.07);
+  --card-border: rgba(255,255,255,0.12);
+  --text: #fff;
+  --text-dim: rgba(255,255,255,0.55);
+  --yellow: #fbbf24;
+  --green: #34d399;
+  --red: #f87171;
+  --purple: #6366f1;
+  --purple-light: #a5b4fc;
+  --orange: #f97316;
+  --pink: #f472b6;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xl: 24px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.45);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
+  background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 14px 30px;
+  gap: 12px;
+}
+
+/* ===== HEADER / SCORE BAR ===== */
+.header {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  backdrop-filter: blur(12px);
+}
+
+.stat-block { display: flex; flex-direction: column; }
+.stat-block.right { align-items: flex-end; }
+.stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.stat-value { font-size: 1.75rem; font-weight: 900; line-height: 1; }
+#score-value { color: var(--yellow); }
+
+.game-logo {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--purple-light);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ===== TARGET SECTION ===== */
+.target-card {
+  width: 100%;
+  max-width: 680px;
+  background: var(--card);
+  border: 2px solid rgba(251,191,36,0.28);
+  border-radius: var(--radius-xl);
+  padding: 18px 24px 20px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow), 0 0 40px rgba(251,191,36,0.07);
+}
+
+.target-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+#target-number {
+  font-size: clamp(3.5rem, 14vw, 6rem);
+  font-weight: 900;
+  color: var(--yellow);
+  line-height: 1;
+  text-shadow: 0 0 40px rgba(251,191,36,0.35);
+}
+
+/* Pop entrance animation for new target */
+@keyframes popIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop { animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* ===== EXPRESSION BUILDER ===== */
+.expression-card {
+  width: 100%;
+  max-width: 680px;
+  background: var(--card);
+  border: 1.5px solid var(--card-border);
+  border-radius: var(--radius-xl);
+  padding: 18px 22px 16px;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.expression-card.state-ok     { border-color: var(--card-border); box-shadow: none; }
+.expression-card.state-match  { border-color: var(--green); box-shadow: 0 0 28px rgba(52,211,153,0.2); }
+.expression-card.state-exceed { border-color: var(--red);   box-shadow: 0 0 20px rgba(248,113,113,0.15); }
+
+.section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+/* Factor chip display area */
+#expression-display {
+  min-height: 58px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 0 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 12px;
+}
+
+.expr-placeholder {
+  font-size: 1rem;
+  color: rgba(255,255,255,0.22);
+  font-style: italic;
+}
+
+/* Animated factor chip */
+.factor-chip {
+  background: rgba(99,102,241,0.35);
+  border: 1.5px solid rgba(165,180,252,0.55);
+  border-radius: 10px;
+  padding: 6px 15px;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #c4b5fd;
+  animation: chipIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+
+@keyframes chipIn {
+  from { transform: scale(0.4) translateY(-8px); opacity: 0; }
+  to   { transform: scale(1) translateY(0);      opacity: 1; }
+}
+
+.op-chip {
+  font-size: 1.2rem;
+  font-weight: 300;
+  color: var(--text-dim);
+}
+
+/* Product row */
+.product-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 28px;
+}
+
+.product-label { font-size: 0.8rem; color: var(--text-dim); }
+
+#product-value {
+  font-size: 1.65rem;
+  font-weight: 900;
+  transition: color 0.25s;
+  color: rgba(255,255,255,0.85);
+}
+
+#product-value.match  { color: var(--green); }
+#product-value.exceed { color: var(--red); }
+
+#warning-text {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--red);
+  display: none;
+  animation: fadeSlideIn 0.25s ease;
+}
+
+#warning-text.visible { display: inline; }
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ===== CONTROL BUTTONS ===== */
+.controls {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  gap: 9px;
+}
+
+.ctrl-btn {
+  flex: 1;
+  padding: 13px 8px;
+  border: 1.5px solid;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.18s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: 0.2px;
+}
+
+.ctrl-btn:hover  { transform: translateY(-2px); filter: brightness(1.2); }
+.ctrl-btn:active { transform: scale(0.95); }
+
+.btn-undo {
+  background: rgba(249,115,22,0.15);
+  border-color: rgba(249,115,22,0.45);
+  color: #fdba74;
+}
+.btn-reset {
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.45);
+  color: #fca5a5;
+}
+.btn-next {
+  background: rgba(99,102,241,0.2);
+  border-color: rgba(99,102,241,0.5);
+  color: var(--purple-light);
+}
+
+/* ===== PRIME GRID ===== */
+.prime-card {
+  width: 100%;
+  max-width: 680px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl);
+  padding: 16px 18px 20px;
+  backdrop-filter: blur(10px);
+}
+
+#prime-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prime-btn {
+  min-width: 52px;
+  height: 54px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1.15rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.16s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  padding: 0 10px;
+  color: #fff;
+}
+
+/* Color primes by magnitude for visual variety */
+.prime-btn[data-prime="2"],
+.prime-btn[data-prime="3"],
+.prime-btn[data-prime="5"],
+.prime-btn[data-prime="7"]  { background: rgba(96,165,250,0.75); border: 1.5px solid rgba(147,197,253,0.5); }
+
+.prime-btn[data-prime="11"],
+.prime-btn[data-prime="13"],
+.prime-btn[data-prime="17"],
+.prime-btn[data-prime="19"],
+.prime-btn[data-prime="23"],
+.prime-btn[data-prime="29"] { background: rgba(52,211,153,0.7);  border: 1.5px solid rgba(110,231,183,0.5); }
+
+.prime-btn[data-prime="31"],
+.prime-btn[data-prime="37"],
+.prime-btn[data-prime="41"],
+.prime-btn[data-prime="43"],
+.prime-btn[data-prime="47"],
+.prime-btn[data-prime="53"],
+.prime-btn[data-prime="59"] { background: rgba(249,115,22,0.7);  border: 1.5px solid rgba(253,186,116,0.5); }
+
+.prime-btn[data-prime="61"],
+.prime-btn[data-prime="67"],
+.prime-btn[data-prime="71"],
+.prime-btn[data-prime="73"],
+.prime-btn[data-prime="79"],
+.prime-btn[data-prime="83"],
+.prime-btn[data-prime="89"],
+.prime-btn[data-prime="97"] { background: rgba(244,114,182,0.7); border: 1.5px solid rgba(249,168,212,0.5); }
+
+.prime-btn:hover {
+  transform: translateY(-4px) scale(1.06);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+  filter: brightness(1.2);
+}
+.prime-btn:active { transform: scale(0.93); }
+
+/* Greyed out when prime would exceed target */
+.prime-btn.too-big {
+  background: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.2);
+  cursor: default;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+/* Brief golden flash on successful click */
+@keyframes btnFlash {
+  0%,100% { filter: brightness(1); }
+  45%      { filter: brightness(1.8); box-shadow: 0 0 20px rgba(251,191,36,0.7); }
+}
+.prime-btn.flash { animation: btnFlash 0.38s ease; }
+
+/* Shake when prime would exceed */
+@keyframes btnShake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-7px); }
+  40%     { transform: translateX(7px); }
+  60%     { transform: translateX(-4px); }
+  80%     { transform: translateX(4px); }
+}
+.prime-btn.shake { animation: btnShake 0.38s ease; }
+
+/* ===== SUCCESS OVERLAY ===== */
+#success-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+#success-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.success-card {
+  background: rgba(12,10,35,0.97);
+  border: 2px solid rgba(52,211,153,0.4);
+  border-radius: var(--radius-xl);
+  padding: 38px 44px;
+  text-align: center;
+  max-width: 370px;
+  width: calc(100% - 32px);
+  box-shadow: 0 0 60px rgba(52,211,153,0.18), var(--shadow);
+  transform: scale(0.75);
+  transition: transform 0.45s cubic-bezier(0.34,1.56,0.64,1);
+}
+#success-overlay.show .success-card { transform: scale(1); }
+
+.sc-icon  { font-size: 3.5rem; display: block; margin-bottom: 6px; }
+.sc-title { font-size: 2rem; font-weight: 900; color: var(--green); margin-bottom: 14px; }
+
+.sc-equation {
+  font-size: 1.15rem;
+  font-family: 'Courier New', 'Consolas', monospace;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 11px 20px;
+  color: #c4b5fd;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+  word-break: break-all;
+}
+
+.sc-points {
+  display: inline-block;
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.3);
+  border-radius: 20px;
+  padding: 4px 16px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--yellow);
+  margin-bottom: 16px;
+}
+
+.sc-hint { font-size: 0.85rem; color: var(--text-dim); }
+
+/* ===== CONFETTI CANVAS ===== */
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 420px) {
+  body { padding: 10px 10px 24px; gap: 10px; }
+  .prime-btn { min-width: 44px; height: 47px; font-size: 1.05rem; }
+  .controls .ctrl-btn { font-size: 0.82rem; }
+  .success-card { padding: 28px 22px; }
+  .sc-title { font-size: 1.7rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Confetti canvas (drawn by JS) -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- ───────────── HEADER / SCORE BAR ───────────── -->
+<header class="header">
+  <div class="stat-block">
+    <span class="stat-label">分數</span>
+    <span class="stat-value" id="score-value">0</span>
+  </div>
+
+  <div class="game-logo">⭐ 質因數<br>分解練習</div>
+
+  <div class="stat-block right">
+    <span class="stat-label">連對</span>
+    <span class="stat-value" id="streak-value" style="color:#f472b6">0</span>
+  </div>
+</header>
+
+<!-- ───────────── TOP: TARGET NUMBER ───────────── -->
+<section class="target-card">
+  <div class="target-label">目標數字 Target</div>
+  <div id="target-number">46</div>
+</section>
+
+<!-- ───────────── MIDDLE: EXPRESSION BUILDER ───────────── -->
+<section class="expression-card state-ok" id="expression-card">
+  <div class="section-label">你選的因數 Your Factors</div>
+
+  <!-- Factor chips appear here -->
+  <div id="expression-display">
+    <span class="expr-placeholder">點選下方質數來開始...</span>
+  </div>
+
+  <!-- Live product feedback -->
+  <div class="product-row">
+    <span class="product-label">目前乘積：</span>
+    <span id="product-value">—</span>
+    <span id="warning-text">⚠️ 乘積超過目標！</span>
+  </div>
+</section>
+
+<!-- ───────────── CONTROLS ───────────── -->
+<div class="controls">
+  <button class="ctrl-btn btn-undo" onclick="undoFactor()"  title="撤銷最後一個因數">↩ 撤銷上一個</button>
+  <button class="ctrl-btn btn-reset" onclick="resetFactors()" title="清除所有因數">✕ 重設</button>
+  <button class="ctrl-btn btn-next"  onclick="skipQuestion()" title="跳過此題">▶ 下一題</button>
+</div>
+
+<!-- ───────────── BOTTOM: PRIME SELECTION GRID ───────────── -->
+<section class="prime-card">
+  <div class="section-label">質數選擇區 Prime Numbers</div>
+  <div id="prime-grid">
+    <!-- Buttons injected by JS -->
+  </div>
+</section>
+
+<!-- ───────────── SUCCESS OVERLAY ───────────── -->
+<div id="success-overlay">
+  <div class="success-card">
+    <span class="sc-icon">🎉</span>
+    <div class="sc-title">答對了！</div>
+    <div class="sc-equation" id="sc-equation">46 = 2 × 23</div>
+    <div class="sc-points"   id="sc-points">+10 分</div>
+    <div class="sc-hint">即將進入下一題...</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// =====================================================================
+//  CONSTANTS
+// =====================================================================
+
+/** All prime numbers from 2 to 97 that appear on the selection panel */
+const PRIMES = [
+  2,  3,  5,  7, 11, 13, 17, 19, 23, 29,
+  31, 37, 41, 43, 47, 53, 59, 61,
+  67, 71, 73, 79, 83, 89, 97
+];
+
+// Points awarded for a correct answer
+const BASE_POINTS   = 10;
+const STREAK_BONUS  = 2; // extra points per streak level
+
+// =====================================================================
+//  GAME STATE
+// =====================================================================
+
+const state = {
+  target:       0,        // current target number to factorise
+  factors:      [],       // array of selected prime numbers
+  score:        0,        // cumulative score
+  streak:       0,        // consecutive correct answers
+  animating:    false,    // true while success overlay is shown
+};
+
+// =====================================================================
+//  MATH UTILITIES
+// =====================================================================
+
+/**
+ * Returns true if n is a prime number (trial-division method).
+ */
+function isPrime(n) {
+  if (n < 2) return false;
+  if (n === 2) return true;
+  if (n % 2 === 0) return false;
+  for (let i = 3; i * i <= n; i += 2) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns a random composite integer in [20, 100].
+ * Re-rolls if the result is prime.
+ */
+function randomComposite() {
+  let n;
+  do {
+    n = 20 + Math.floor(Math.random() * 81); // [20 … 100]
+  } while (isPrime(n));
+  return n;
+}
+
+/**
+ * Returns the product of all currently selected factors.
+ * Returns 1 when no factors have been selected.
+ */
+function currentProduct() {
+  return state.factors.reduce((acc, p) => acc * p, 1);
+}
+
+// =====================================================================
+//  GAME FLOW
+// =====================================================================
+
+/**
+ * Load a fresh problem: new target, empty factor list, re-render.
+ */
+function loadNewProblem() {
+  state.target   = randomComposite();
+  state.factors  = [];
+  state.animating = false;
+  renderAll();
+  animateTargetNumber();
+}
+
+/**
+ * Skip to next question without earning points (also resets streak).
+ */
+function skipQuestion() {
+  if (state.animating) return;
+  state.streak = 0;
+  loadNewProblem();
+}
+
+// =====================================================================
+//  USER ACTIONS
+// =====================================================================
+
+/**
+ * Called when the student clicks a prime button.
+ * Validates that the new product would not exceed the target.
+ */
+function addFactor(prime) {
+  if (state.animating) return;
+
+  const newProduct = currentProduct() * prime;
+
+  // Guard: adding this prime would exceed the target
+  if (newProduct > state.target) {
+    triggerExceedWarning(prime);
+    return;
+  }
+
+  state.factors.push(prime);
+  renderAll();
+  flashButton(prime);
+  playSound('click');
+
+  // Check for correct answer
+  if (currentProduct() === state.target) {
+    handleCorrectAnswer();
+  }
+}
+
+/**
+ * Remove the last factor (undo).
+ */
+function undoFactor() {
+  if (state.animating || state.factors.length === 0) return;
+  state.factors.pop();
+  renderAll();
+  playSound('undo');
+}
+
+/**
+ * Clear all selected factors.
+ */
+function resetFactors() {
+  if (state.animating) return;
+  state.factors = [];
+  renderAll();
+}
+
+// =====================================================================
+//  CORRECT ANSWER HANDLING
+// =====================================================================
+
+/**
+ * Award points, show success overlay, then auto-advance.
+ */
+function handleCorrectAnswer() {
+  state.animating = true;
+
+  const points = BASE_POINTS + state.streak * STREAK_BONUS;
+  state.score  += points;
+  state.streak++;
+
+  // Build the factorisation equation string
+  const equation = `${state.target} = ${state.factors.join(' × ')}`;
+
+  // Populate and show overlay
+  document.getElementById('sc-equation').textContent = equation;
+  document.getElementById('sc-points').textContent   = `+${points} 分`;
+  document.getElementById('success-overlay').classList.add('show');
+
+  // Update score/streak display immediately
+  refreshScoreDisplay();
+
+  // Effects
+  playSound('correct');
+  launchConfetti();
+
+  // Auto-advance after 2.3 seconds
+  setTimeout(() => {
+    document.getElementById('success-overlay').classList.remove('show');
+    loadNewProblem();
+  }, 2300);
+}
+
+// =====================================================================
+//  RENDER FUNCTIONS
+// =====================================================================
+
+/**
+ * Master re-render: expression display, product readout,
+ * prime grid availability, and score header.
+ */
+function renderAll() {
+  renderExpressionDisplay();
+  renderProductDisplay();
+  renderPrimeGrid();
+  refreshScoreDisplay();
+}
+
+/**
+ * Rebuild the factor chips row.
+ * Uses innerHTML for simplicity (all chips re-animate briefly on change).
+ */
+function renderExpressionDisplay() {
+  const display = document.getElementById('expression-display');
+
+  if (state.factors.length === 0) {
+    display.innerHTML = '<span class="expr-placeholder">點選下方質數來開始...</span>';
+    return;
+  }
+
+  // Build chips + operators
+  let html = '';
+  state.factors.forEach((f, i) => {
+    if (i > 0) html += '<span class="op-chip">×</span>';
+    html += `<span class="factor-chip">${f}</span>`;
+  });
+  display.innerHTML = html;
+}
+
+/**
+ * Update the product value and card border state.
+ */
+function renderProductDisplay() {
+  const product  = state.factors.length === 0 ? null : currentProduct();
+  const card     = document.getElementById('expression-card');
+  const valEl    = document.getElementById('product-value');
+  const warnEl   = document.getElementById('warning-text');
+
+  warnEl.classList.remove('visible');
+
+  if (product === null) {
+    valEl.textContent = '—';
+    valEl.className   = '';
+    card.className    = 'expression-card state-ok';
+    return;
+  }
+
+  valEl.textContent = product;
+
+  if (product === state.target) {
+    valEl.className = 'match';
+    card.className  = 'expression-card state-match';
+  } else if (product > state.target) {
+    valEl.className = 'exceed';
+    card.className  = 'expression-card state-exceed';
+    warnEl.classList.add('visible');
+  } else {
+    valEl.className = '';
+    card.className  = 'expression-card state-ok';
+  }
+}
+
+/**
+ * Mark prime buttons that would push the product over the target as "too-big".
+ * Buttons below the threshold remain fully clickable.
+ */
+function renderPrimeGrid() {
+  const product = currentProduct();
+
+  document.querySelectorAll('.prime-btn').forEach(btn => {
+    const prime      = parseInt(btn.dataset.prime, 10);
+    const wouldExceed = product * prime > state.target;
+
+    if (wouldExceed) {
+      btn.classList.add('too-big');
+      btn.title = `${prime}：會超過 ${state.target}`;
+    } else {
+      btn.classList.remove('too-big');
+      btn.title = prime;
+    }
+  });
+}
+
+/** Refresh score and streak in the header. */
+function refreshScoreDisplay() {
+  document.getElementById('score-value').textContent = state.score;
+  const s = state.streak;
+  const flames = s >= 5 ? '🔥🔥' : s >= 3 ? '🔥' : '';
+  document.getElementById('streak-value').textContent = s + (flames ? ` ${flames}` : '');
+}
+
+// =====================================================================
+//  VISUAL FEEDBACK
+// =====================================================================
+
+/**
+ * Brief golden flash on the clicked prime button.
+ */
+function flashButton(prime) {
+  const btn = document.querySelector(`.prime-btn[data-prime="${prime}"]`);
+  if (!btn) return;
+  btn.classList.remove('flash');
+  void btn.offsetWidth; // trigger reflow to restart animation
+  btn.classList.add('flash');
+  btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+}
+
+/**
+ * Shake the prime button and flash the warning text when it would exceed.
+ */
+function triggerExceedWarning(prime) {
+  const btn = document.querySelector(`.prime-btn[data-prime="${prime}"]`);
+  if (btn) {
+    btn.classList.remove('shake');
+    void btn.offsetWidth;
+    btn.classList.add('shake');
+    btn.addEventListener('animationend', () => btn.classList.remove('shake'), { once: true });
+  }
+
+  const warnEl = document.getElementById('warning-text');
+  warnEl.classList.add('visible');
+  setTimeout(() => warnEl.classList.remove('visible'), 1600);
+
+  playSound('wrong');
+}
+
+/** Animate the target number with a pop entrance. */
+function animateTargetNumber() {
+  const el = document.getElementById('target-number');
+  el.textContent = state.target;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
+// =====================================================================
+//  AUDIO  (Web Audio API — no external files required)
+// =====================================================================
+
+let audioCtx = null;
+
+/** Lazily create AudioContext on first use (satisfies browser autoplay policy). */
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+/**
+ * Play a synthesised sound effect.
+ * @param {string} type  'click' | 'correct' | 'wrong' | 'undo'
+ */
+function playSound(type) {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+
+    const makeOsc = (freq, type, startT, stopT, vol) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, startT);
+      gain.gain.exponentialRampToValueAtTime(0.0001, stopT);
+      osc.start(startT);
+      osc.stop(stopT);
+    };
+
+    if (type === 'click') {
+      makeOsc(620, 'sine', now, now + 0.14, 0.09);
+    } else if (type === 'correct') {
+      // Three-note ascending fanfare
+      [[524, 0], [659, 0.13], [784, 0.26]].forEach(([freq, offset]) => {
+        makeOsc(freq, 'sine', now + offset, now + offset + 0.32, 0.11);
+      });
+    } else if (type === 'wrong') {
+      makeOsc(200, 'sawtooth', now, now + 0.22, 0.07);
+    } else if (type === 'undo') {
+      makeOsc(400, 'sine', now,        now + 0.08, 0.07);
+      makeOsc(300, 'sine', now + 0.08, now + 0.18, 0.05);
+    }
+  } catch (_) {
+    // Audio not available — silently ignore
+  }
+}
+
+// =====================================================================
+//  CONFETTI ANIMATION  (Canvas-based, no external dependencies)
+// =====================================================================
+
+let confettiParticles = [];
+let confettiRaf       = null;
+
+/** Launch a burst of confetti particles from the top of the viewport. */
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#fbbf24','#6366f1','#34d399','#f472b6','#60a5fa','#f97316','#a78bfa','#fb7185'];
+
+  // Spawn particles spread across the top edge
+  confettiParticles = Array.from({ length: 110 }, () => ({
+    x:   Math.random() * canvas.width,
+    y:   -10 - Math.random() * 70,
+    w:   5  + Math.random() * 10,
+    h:   3  + Math.random() * 5,
+    col: COLORS[Math.floor(Math.random() * COLORS.length)],
+    vx:  (Math.random() - 0.5) * 7,
+    vy:  2.5 + Math.random() * 5,
+    ang: Math.random() * 360,
+    av:  (Math.random() - 0.5) * 14,
+    g:   0.05 + Math.random() * 0.07, // gravity
+    a:   1,                             // alpha
+  }));
+
+  cancelAnimationFrame(confettiRaf);
+  drawConfetti(ctx, canvas);
+}
+
+function drawConfetti(ctx, canvas) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Update each particle and remove fully transparent ones
+  confettiParticles = confettiParticles.filter(p => p.a > 0.01);
+
+  confettiParticles.forEach(p => {
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.vy += p.g;
+    p.vx *= 0.99;
+    p.ang += p.av;
+    if (p.y > canvas.height * 0.55) p.a = Math.max(0, p.a - 0.028);
+
+    ctx.save();
+    ctx.globalAlpha = p.a;
+    ctx.translate(p.x, p.y);
+    ctx.rotate((p.ang * Math.PI) / 180);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  });
+
+  if (confettiParticles.length > 0) {
+    confettiRaf = requestAnimationFrame(() => drawConfetti(ctx, canvas));
+  } else {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// =====================================================================
+//  INITIALISATION
+// =====================================================================
+
+/**
+ * Build the prime number button grid from the PRIMES array.
+ * Buttons call addFactor() when clicked.
+ */
+function buildPrimeGrid() {
+  const grid = document.getElementById('prime-grid');
+  grid.innerHTML = '';
+
+  PRIMES.forEach(prime => {
+    const btn = document.createElement('button');
+    btn.className        = 'prime-btn';
+    btn.textContent      = prime;
+    btn.dataset.prime    = prime;
+    btn.setAttribute('aria-label', `選擇質數 ${prime}`);
+    btn.addEventListener('click', () => addFactor(prime));
+    grid.appendChild(btn);
+  });
+}
+
+/** Entry point — build UI and start the first problem. */
+function init() {
+  buildPrimeGrid();
+  loadNewProblem();
+}
+
+init();
+</script>
+</body>
+</html>
